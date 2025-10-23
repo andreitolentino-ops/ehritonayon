@@ -74,7 +74,7 @@
 
   <main class="bg-gray-50 min-h-screen pt-4 px-6 pb-8">
     <!-- Patient Summary Banner (like real EMRs) -->
-    <div id="patientBanner" class="bg-white border-l-4 border-blue-500 shadow-sm rounded-lg mb-4 p-4">
+    <div id="patientBanner" class="bg-white border-l-4 border-blue-500 shadow-sm rounded-lg mb-8 p-5">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
         <div class="patient-info">
           <h2 class="text-lg font-semibold text-gray-900" id="patientName">Select Patient</h2>
@@ -97,15 +97,21 @@
           <p class="text-sm"><span class="font-medium">Code:</span> <button id="patientCodeStatus" class="text-blue-600 hover:underline">Full Code</button></p>
         </div>
         <div class="patient-actions text-right">
-          <button id="btnChartReview" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors">📋 Chart Review</button>
-          <button id="btnSearchPatient" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm mt-1 hover:bg-gray-300 transition-colors">🔍 Search Patient</button>
-          <button id="btnAddPatient" class="bg-emerald-600 text-white px-3 py-1 rounded text-sm mt-1 hover:bg-emerald-700 transition-colors">➕ Add Patient</button>
-          <div class="mt-2 flex gap-2 justify-end">
-            <button id="btnAssignBed" class="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700 transition-colors">🛏️ Assign Bed</button>
-            <button id="btnTransfer" class="bg-indigo-600/90 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700 transition-colors">🔁 Transfer</button>
-            <button id="btnDischarge" class="bg-rose-600 text-white px-3 py-1 rounded text-sm hover:bg-rose-700 transition-colors">🏁 Discharge</button>
-            <button id="btnPrintSummary" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 transition-colors">🖨️ Print</button>
-            <button id="btnWristband" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 transition-colors">🏷️ Wristband</button>
+          <div class="flex items-center justify-end gap-2">
+            <button id="btnChartReview" class="btn-primary btn-sm">📋 Chart Review</button>
+            <button id="btnSearchPatient" class="btn-ghost btn-sm">🔍 Search Patient</button>
+            <button id="btnAddPatient" class="btn-primary btn-sm">➕ Add Patient</button>
+            <div class="relative inline-block text-left">
+              <button id="btnPatientActions" class="btn-ghost btn-sm">⚙️ Patient Actions ▾</button>
+              <div id="patientActionsMenu" class="menu hidden absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg z-30 text-left">
+                <button id="btnAssignBed" class="menu-item w-full text-left">🛏️ Assign Bed</button>
+                <button id="btnTransfer" class="menu-item w-full text-left">🔁 Transfer</button>
+                <button id="btnDischarge" class="menu-item w-full text-left">🏁 Discharge</button>
+                <hr class="my-1">
+                <button id="btnPrintSummary" class="menu-item w-full text-left">🖨️ Print Summary</button>
+                <button id="btnWristband" class="menu-item w-full text-left">🏷️ Wristband</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -113,7 +119,7 @@
 
     <div class="grid grid-cols-12 gap-4 lg:gap-6">
       <!-- Simple Side Navigation -->
-      <aside class="col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2 lg:sticky lg:top-24">
+      <aside class="col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2 md:sticky md:top-24">
         <div class="bg-white rounded-lg shadow-sm border p-3">
           <h3 class="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Chart Sections</h3>
           <nav class="space-y-1">
@@ -160,12 +166,12 @@
           <div class="border-b p-4">
             <div class="flex items-center justify-between">
               <div>
-                <h1 class="text-xl font-semibold text-gray-900" id="sectionTitle">Patient Overview</h1>
+                <h1 class="text-2xl font-semibold text-gray-900" id="sectionTitle">Patient Overview</h1>
                 <p class="text-sm text-gray-600" id="sectionSubtitle">Comprehensive patient information and recent activity</p>
               </div>
               <div class="flex items-center gap-2">
                 <span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">Last updated: <span id="lastUpdate">Just now</span></span>
-                <button type="button" onclick="showAllPatients()" class="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">View Patients</button>
+                <button type="button" onclick="showAllPatients()" class="btn-ghost btn-sm">View Patients</button>
               </div>
             </div>
           </div>
