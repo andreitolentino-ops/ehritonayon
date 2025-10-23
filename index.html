@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ONE CARE SYSTEM — Modern Healthcare EHR</title>
+
+  <!-- Preload critical resources -->
+  <link rel="preload" href="style.css" as="style">
+  <link rel="preload" href="app.js" as="script">
+  
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Progressive Web App capabilities -->
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="One Care System">
+  
+  <!-- App icon to prevent favicon 404s -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' rx='12' fill='%230ea5e9'/%3E%3Crect x='28' y='14' width='8' height='36' fill='white'/%3E%3Crect x='14' y='28' width='36' height='8' fill='white'/%3E%3C/svg%3E" />
+</head>
+<body class="bg-slate-50 text-slate-700 min-h-screen antialiased transition-colors duration-500">
+
+  <!-- App header: logo, breadcrumb, search, actions -->
+  <header class="app-header w-full py-4 px-6 bg-white/70 glass border-b sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div class="header-left flex items-center gap-4">
+        <div class="header-logo flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-sky-600 to-indigo-700 text-white flex items-center justify-center text-lg">🩺</div>
+          <div class="leading-tight">
+            <div class="font-bold text-slate-800">ONE CARE <span class="text-amber-400">SYSTEM</span></div>
+            <div class="text-xs text-slate-500">Modern EHR</div>
+          </div>
+        </div>
+        <div class="breadcrumb ml-4 text-sm text-slate-600">
+          <span id="breadcrumb-current">Dashboard</span>
+        </div>
+      </div>
+
+      <div class="header-center flex-1 px-4">
+        <div class="max-w-xl mx-auto relative">
+          <input id="searchTop" type="search" placeholder="Search patients, MRN, physician... (press /)" class="w-full rounded-lg p-3 border" />
+          <div class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">/</div>
+        </div>
+      </div>
+
+      <div class="header-right flex items-center gap-3">
+        <div class="relative" id="userMenuWrap">
+          <button id="userMenuBtn" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border hover:bg-gray-50">
+            <span id="userMenuEmail" class="font-medium text-sm">Not signed in</span>
+            <span id="currentUserRole" class="text-xs text-slate-500 px-2 py-1 bg-gray-100 rounded">(GUEST)</span>
+            <span class="text-xs opacity-60 ml-1">▾</span>
+          </button>
+          <div id="userMenu" class="hidden absolute right-0 mt-2 w-64 rounded-lg bg-white shadow-lg border p-0 z-50">
+            <div class="text-sm p-4 border-b bg-gray-50">
+              <strong id="userMenuEmailStrong" class="block">Not signed in</strong>
+              <div id="userRole" class="text-xs text-slate-500 mt-1">GUEST</div>
+            </div>
+            <div class="p-2">
+              <button id="themeToggleBtn" class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 rounded">🌙 Toggle Theme</button>
+              <button id="helpBtn" class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 rounded">❓ Help & Documentation</button>
+              <button id="enableNotificationsBtn" class="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 rounded">🔔 Enable Notifications</button>
+              <hr class="my-1">
+              <button id="btnLogout" class="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-red-50 rounded">🚪 Sign Out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="bg-gray-50 min-h-screen pt-4 px-6 pb-8">
+    <!-- Patient Summary Banner (like real EMRs) -->
+    <div id="patientBanner" class="bg-white border-l-4 border-blue-500 shadow-sm rounded-lg mb-4 p-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+        <div class="patient-info">
+          <h2 class="text-lg font-semibold text-gray-900" id="patientName">Select Patient</h2>
+          <p class="text-sm text-gray-600" id="patientMRN">MRN: Not Selected</p>
+          <p class="text-sm text-gray-500" id="patientDOB">DOB: --/--/----</p>
+        </div>
+        <div class="patient-details">
+          <p class="text-sm"><span class="font-medium">Age:</span> <span id="patientAge">--</span></p>
+          <p class="text-sm"><span class="font-medium">Gender:</span> <span id="patientGender">--</span></p>
+          <p class="text-sm"><span class="font-medium">Room:</span> <span id="patientRoom">--</span></p>
+        </div>
+        <div class="patient-status">
+          <p class="text-sm"><span class="font-medium">Attending:</span> <span id="attendingPhysician">Dr. --</span></p>
+          <p class="text-sm"><span class="font-medium">Admit Date:</span> <span id="admitDate">--/--/----</span></p>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+            <span class="text-xs text-green-600 font-medium" id="patientStatus">Active</span>
+          </div>
+          <p class="text-sm mt-1"><span class="font-medium">Allergies:</span> <button id="patientAllergies" class="text-blue-600 hover:underline">None</button></p>
+          <p class="text-sm"><span class="font-medium">Code:</span> <button id="patientCodeStatus" class="text-blue-600 hover:underline">Full Code</button></p>
+        </div>
+        <div class="patient-actions text-right">
+          <button id="btnChartReview" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors">📋 Chart Review</button>
+          <button id="btnSearchPatient" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm mt-1 hover:bg-gray-300 transition-colors">🔍 Search Patient</button>
+          <button id="btnAddPatient" class="bg-emerald-600 text-white px-3 py-1 rounded text-sm mt-1 hover:bg-emerald-700 transition-colors">➕ Add Patient</button>
+          <div class="mt-2 flex gap-2 justify-end">
+            <button id="btnAssignBed" class="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700 transition-colors">🛏️ Assign Bed</button>
+            <button id="btnTransfer" class="bg-indigo-600/90 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700 transition-colors">🔁 Transfer</button>
+            <button id="btnDischarge" class="bg-rose-600 text-white px-3 py-1 rounded text-sm hover:bg-rose-700 transition-colors">🏁 Discharge</button>
+            <button id="btnPrintSummary" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 transition-colors">🖨️ Print</button>
+            <button id="btnWristband" class="bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 transition-colors">🏷️ Wristband</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-4 lg:gap-6">
+      <!-- Simple Side Navigation -->
+      <aside class="col-span-12 md:col-span-4 lg:col-span-3 xl:col-span-2 lg:sticky lg:top-24">
+        <div class="bg-white rounded-lg shadow-sm border p-3">
+          <h3 class="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Chart Sections</h3>
+          <nav class="space-y-1">
+            <button type="button" data-target="overview" class="nav-item active w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">📊</span>
+              <span>Overview</span>
+            </button>
+            <button type="button" data-target="vitals" class="nav-item w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">❤️</span>
+              <span>Vitals</span>
+            </button>
+            <button type="button" data-target="medications" class="nav-item w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">💊</span>
+              <span>Medications</span>
+            </button>
+            <button type="button" data-target="labs" class="nav-item w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">🧪</span>
+              <span>Lab Results</span>
+            </button>
+            <button type="button" data-target="notes" class="nav-item w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">📝</span>
+              <span>Clinical Notes</span>
+            </button>
+            <button type="button" data-target="orders" class="nav-item w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">📋</span>
+              <span>Orders</span>
+            </button>
+            <button type="button" data-target="imaging" class="nav-item w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">🩻</span>
+              <span>Imaging</span>
+            </button>
+            <button type="button" data-target="history" class="nav-item w-full text-left p-2 rounded text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <span class="text-base">📚</span>
+              <span>History</span>
+            </button>
+          </nav>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <section class="col-span-12 md:col-span-8 lg:col-span-9 xl:col-span-10">
+        <div class="bg-white rounded-lg shadow-sm border">
+          <!-- Tab Header -->
+          <div class="border-b p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h1 class="text-xl font-semibold text-gray-900" id="sectionTitle">Patient Overview</h1>
+                <p class="text-sm text-gray-600" id="sectionSubtitle">Comprehensive patient information and recent activity</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">Last updated: <span id="lastUpdate">Just now</span></span>
+                <button type="button" onclick="showAllPatients()" class="text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700">View Patients</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Content -->
+          <div id="chartContent" class="p-6">
+            <!-- Overview Content -->
+            <div id="content-overview" class="chart-section">
+              <!-- Patients List (only shows on Overview) -->
+              <div class="mb-6" id="patientsAnchor">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="font-medium text-gray-900">Patients</h3>
+                  <div class="text-sm text-gray-500">Use the search box at the top to filter</div>
+                </div>
+                <div id="patientsLoading" class="text-sm text-gray-500 bg-white border rounded p-3 mb-3">Loading patients…</div>
+                <div id="patientsEmpty" class="hidden text-sm text-gray-600 bg-white border rounded p-4">
+                  <div class="font-medium mb-1">No patients yet</div>
+                  <div class="text-xs">Click “➕ Add Patient” in the banner to create one.</div>
+                </div>
+                <div id="patientsContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 overview-grid">
+                <!-- Vital Signs Summary -->
+                <div class="bg-gradient-to-br from-red-50 to-pink-50 p-4 rounded-lg border border-red-100">
+                  <h3 class="font-medium text-gray-900 mb-2">Latest Vitals</h3>
+                  <div class="space-y-1 text-sm">
+                    <p><span class="text-gray-600">BP:</span> <span class="font-medium">120/80</span></p>
+                    <p><span class="text-gray-600">HR:</span> <span class="font-medium">72 bpm</span></p>
+                    <p><span class="text-gray-600">Temp:</span> <span class="font-medium">98.6°F</span></p>
+                    <p><span class="text-gray-600">SpO2:</span> <span class="font-medium">98%</span></p>
+                  </div>
+                </div>
+
+                <!-- Recent Labs -->
+                <div class="bg-gradient-to-br from-blue-50 to-cyan-50 p-4 rounded-lg border border-blue-100">
+                  <h3 class="font-medium text-gray-900 mb-2">Recent Labs</h3>
+                  <div class="space-y-1 text-sm">
+                    <p><span class="text-gray-600">WBC:</span> <span class="font-medium">7.2</span></p>
+                    <p><span class="text-gray-600">Hgb:</span> <span class="font-medium">12.5</span></p>
+                    <p><span class="text-gray-600">Glucose:</span> <span class="font-medium">95</span></p>
+                    <p><span class="text-gray-600">Creatinine:</span> <span class="font-medium">1.0</span></p>
+                    <p id="linkViewAllLabs" class="text-blue-600 cursor-pointer hover:underline">View All →</p>
+                  </div>
+                </div>
+
+                <!-- Current Medications -->
+                <div class="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-lg border border-green-100">
+                  <h3 class="font-medium text-gray-900 mb-2">Active Medications</h3>
+                  <div class="space-y-1 text-sm">
+                    <p class="font-medium">Lisinopril 10mg</p>
+                    <p class="font-medium">Metformin 500mg</p>
+                    <p class="font-medium">Aspirin 81mg</p>
+                    <p id="linkViewAllMeds" class="text-blue-600 cursor-pointer hover:underline">View All →</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Activity -->
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="font-medium text-gray-900 mb-3">Recent Activity</h3>
+                <div class="space-y-3">
+                  <div class="flex items-start gap-3 bg-white p-3 rounded border">
+                    <div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                    <div class="flex-1">
+                      <p class="text-sm font-medium">Vital signs recorded</p>
+                      <p class="text-xs text-gray-500">2 hours ago • by Nurse Johnson</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3 bg-white p-3 rounded border">
+                    <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                    <div class="flex-1">
+                      <p class="text-sm font-medium">Lab results reviewed</p>
+                      <p class="text-xs text-gray-500">4 hours ago • by Dr. Smith</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3 bg-white p-3 rounded border">
+                    <div class="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+                    <div class="flex-1">
+                      <p class="text-sm font-medium">Medication administered</p>
+                      <p class="text-xs text-gray-500">6 hours ago • by Nurse Wilson</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              
+            </div>
+
+            <!-- Other sections will be hidden initially -->
+            <div id="content-vitals" class="chart-section hidden">
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Chart / Trends -->
+                <div class="lg:col-span-2 bg-slate-50 border rounded-lg p-4">
+                  <h3 class="font-medium text-slate-800 mb-3">Vitals Trends</h3>
+                  <div id="vitalsChartContent" class="min-h-64 flex items-center justify-center text-slate-400">
+                    Select a patient to see vitals chart
+                  </div>
+                </div>
+                
+                <!-- Quick Entry -->
+                <div class="bg-white border rounded-lg p-4">
+                  <h3 class="font-medium text-slate-800 mb-3">Record Vitals</h3>
+                  <div class="mb-3">
+                    <button type="button" id="btnSepsisScreen" class="px-3 py-2 text-xs rounded bg-amber-100 text-amber-800 hover:bg-amber-200">⚠️ Sepsis Screen</button>
+                  </div>
+                  <form id="form-vitals" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                      <input id="v_date" name="v_date" type="date" class="w-full rounded-lg p-2 border" />
+                      <input id="v_time" name="v_time" type="time" class="w-full rounded-lg p-2 border" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <input id="v_temp" name="v_temp" type="number" step="0.1" placeholder="Temp (°C)" class="w-full rounded-lg p-2 border" />
+                      <input id="v_pulse" name="v_pulse" type="number" placeholder="HR (bpm)" class="w-full rounded-lg p-2 border" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <input id="v_bp" name="v_bp" type="text" placeholder="BP (e.g., 120/80)" class="w-full rounded-lg p-2 border" />
+                      <input id="v_spo2" name="v_spo2" type="number" placeholder="SpO2 (%)" class="w-full rounded-lg p-2 border" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <input id="v_rr" name="v_rr" type="number" placeholder="RR (rpm)" class="w-full rounded-lg p-2 border" />
+                      <input id="v_by" name="v_by" type="text" placeholder="By (initials)" class="w-full rounded-lg p-2 border" />
+                    </div>
+                    <div class="flex gap-2">
+                      <button type="button" id="btnAddVitals" class="btn-primary px-3 py-2 rounded-lg">Add</button>
+                      <button type="button" id="clearVitals" class="btn-ghost px-3 py-2 rounded-lg">Clear</button>
+                    </div>
+                  </form>
+                  <div class="mt-4 overflow-auto">
+                    <table class="w-full text-sm">
+                      <thead class="text-left text-slate-500">
+                        <tr>
+                          <th class="py-1 pr-2">Date</th>
+                          <th class="py-1 pr-2">Time</th>
+                          <th class="py-1 pr-2">Temp</th>
+                          <th class="py-1 pr-2">HR</th>
+                          <th class="py-1 pr-2">RR</th>
+                          <th class="py-1 pr-2">BP</th>
+                          <th class="py-1 pr-2">SpO2</th>
+                          <th class="py-1 pr-2">In</th>
+                          <th class="py-1 pr-2">Out</th>
+                          <th class="py-1 pr-2">By</th>
+                          <th class="py-1 pr-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody id="vitalsTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="content-medications" class="chart-section hidden">
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- CPOE Form -->
+                <div class="lg:col-span-1 bg-white border rounded-lg p-4">
+                  <h3 class="font-medium text-slate-800 mb-3">CPOE - Add Medication</h3>
+                  <div class="mb-3 flex flex-wrap gap-2">
+                    <button type="button" id="orderSetACS" class="px-3 py-1 text-xs rounded bg-sky-100 text-sky-800 hover:bg-sky-200">📋 Apply ACS Order Set</button>
+                    <button type="button" id="orderSetPNA" class="px-3 py-1 text-xs rounded bg-teal-100 text-teal-800 hover:bg-teal-200">📋 Apply Pneumonia Order Set</button>
+                  </div>
+                  <form id="medCPOEForm" class="space-y-3">
+                    <input name="drug" placeholder="Drug name" class="w-full rounded-lg p-2 border" />
+                    <div class="grid grid-cols-2 gap-3">
+                      <input name="dosage" placeholder="Dose (e.g., 500mg)" class="w-full rounded-lg p-2 border" />
+                      <input name="route" placeholder="Route (PO, IV, etc.)" class="w-full rounded-lg p-2 border" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <input name="frequency" placeholder="Frequency (BID, q6h)" class="w-full rounded-lg p-2 border" />
+                      <input name="duration" placeholder="Duration (days)" class="w-full rounded-lg p-2 border" />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <input name="startDate" type="date" class="w-full rounded-lg p-2 border" />
+                      <select name="prn" class="w-full rounded-lg p-2 border"><option>No</option><option>Yes</option></select>
+                    </div>
+                    <input name="prescriber" placeholder="Prescriber" class="w-full rounded-lg p-2 border" />
+                    <div class="flex gap-2">
+                      <button type="button" id="addMedOrderBtn" class="btn-primary px-3 py-2 rounded-lg">Add</button>
+                      <button type="button" id="cpoeClear" class="btn-ghost px-3 py-2 rounded-lg">Clear</button>
+                    </div>
+                    <div id="drugSafetyAlerts" class="mt-2 text-sm text-red-600"></div>
+                    <div id="dosingGuidelines" class="hidden mt-2 text-sm text-slate-600"></div>
+                    <div class="mt-1 text-xs text-slate-500 flex items-center gap-1"><span id="drugSafetyIcon">💊</span> Safety checks active</div>
+                  </form>
+                </div>
+                
+                <!-- Active Orders -->
+                <div class="lg:col-span-2 grid grid-cols-1 gap-6">
+                  <div class="bg-slate-50 border rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <h3 class="font-medium text-slate-800">Active Medications</h3>
+                      <button type="button" id="sendToPharmacy" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm">Send to Pharmacy</button>
+                    </div>
+                    <div class="overflow-auto">
+                      <table class="w-full text-sm">
+                        <thead class="text-left text-slate-500">
+                          <tr>
+                            <th class="py-1 pr-2">Drug</th>
+                            <th class="py-1 pr-2">Dose</th>
+                            <th class="py-1 pr-2">Route</th>
+                            <th class="py-1 pr-2">Freq</th>
+                            <th class="py-1 pr-2">Start</th>
+                            <th class="py-1 pr-2">Duration</th>
+                            <th class="py-1 pr-2">PRN</th>
+                            <th class="py-1 pr-2">Prescriber</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody id="medTableBody"></tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="bg-slate-50 border rounded-lg p-4">
+                    <h3 class="font-medium text-slate-800 mb-2">IV Orders</h3>
+                    <div class="overflow-auto">
+                      <table class="w-full text-sm">
+                        <thead class="text-left text-slate-500">
+                          <tr>
+                            <th class="py-1 pr-2">Fluid</th>
+                            <th class="py-1 pr-2">mL/hr</th>
+                            <th class="py-1 pr-2">gtt/min</th>
+                            <th class="py-1 pr-2">Volume</th>
+                            <th class="py-1 pr-2">Time</th>
+                            <th class="py-1 pr-2">Start</th>
+                            <th class="py-1 pr-2">Prescriber</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody id="ivTableBody"></tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="bg-slate-50 border rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <h3 class="font-medium text-slate-800">Medication Administration Record (MAR)</h3>
+                      <div class="text-xs text-slate-500">5-rights check simulated</div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
+                      <input id="marDrug" placeholder="Drug" class="rounded-lg p-2 border" />
+                      <input id="marDose" placeholder="Dose" class="rounded-lg p-2 border" />
+                      <input id="marBy" placeholder="Given by" class="rounded-lg p-2 border" />
+                      <input id="marNotes" placeholder="Notes" class="rounded-lg p-2 border" />
+                    </div>
+                    <button id="addMARBtn" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm mb-3">Add MAR Entry</button>
+                    <div class="overflow-auto">
+                      <table class="w-full text-sm">
+                        <thead class="text-left text-slate-500">
+                          <tr>
+                            <th class="py-1 pr-2">Date/Time</th>
+                            <th class="py-1 pr-2">Drug</th>
+                            <th class="py-1 pr-2">Dose</th>
+                            <th class="py-1 pr-2">By</th>
+                            <th class="py-1 pr-2">Notes</th>
+                            <th class="py-1 pr-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody id="marTableBody"></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="content-labs" class="chart-section hidden">
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Lab Order Form -->
+                <div class="bg-white border rounded-lg p-4">
+                  <h3 class="font-medium text-slate-800 mb-3">Order a Lab Test</h3>
+                  <form id="form-labs" class="space-y-3">
+                    <select name="lab_test" class="w-full rounded-lg p-2 border">
+                      <option value="">Select test</option>
+                      <option>CBC</option>
+                      <option>Comprehensive Metabolic Panel</option>
+                      <option>Lipids</option>
+                      <option>Troponin</option>
+                      <option>Urinalysis</option>
+                    </select>
+                    <input name="lab_customTest" placeholder="Custom test (optional)" class="w-full rounded-lg p-2 border" />
+                    <div class="grid grid-cols-2 gap-3">
+                      <select name="lab_priority" class="w-full rounded-lg p-2 border">
+                        <option>Routine</option>
+                        <option>Urgent</option>
+                        <option>Stat</option>
+                      </select>
+                      <input name="lab_specimen" placeholder="Specimen (blood, urine)" class="w-full rounded-lg p-2 border" />
+                    </div>
+                    <textarea name="lab_indication" placeholder="Clinical indication" class="w-full rounded-lg p-2 border" rows="3"></textarea>
+                    <input name="lab_orderDateTime" type="datetime-local" class="w-full rounded-lg p-2 border" />
+                    <div class="flex gap-2">
+                      <button type="button" id="addLabOrder" class="btn-primary px-3 py-2 rounded-lg">Add Order</button>
+                      <button type="button" id="clearLabs" class="btn-ghost px-3 py-2 rounded-lg">Clear</button>
+                    </div>
+                  </form>
+                </div>
+                
+                <!-- Orders & Uploads -->
+                <div class="lg:col-span-2 grid grid-cols-1 gap-6">
+                  <div class="bg-slate-50 border rounded-lg p-4">
+                    <h3 class="font-medium text-slate-800 mb-2">Recent Lab Orders</h3>
+                    <div id="labOrdersHistory"></div>
+                  </div>
+                  <div class="bg-slate-50 border rounded-lg p-4">
+                    <h3 class="font-medium text-slate-800 mb-2">Upload Lab Files</h3>
+                    <div class="flex items-center gap-2">
+                      <input id="labFileInput" type="file" class="border rounded-lg p-2" />
+                      <button id="uploadLabBtn" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm">Upload</button>
+                    </div>
+                    <div id="uploadProgress" class="hidden mt-3">
+                      <div class="w-full bg-slate-200 rounded-full h-2">
+                        <div id="uploadProgressBar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                      </div>
+                      <div id="uploadProgressText" class="text-xs text-slate-500 mt-1">0%</div>
+                    </div>
+                  </div>
+                  <div class="bg-slate-50 border rounded-lg p-4">
+                    <h3 class="font-medium text-slate-800 mb-2">Lab Trends</h3>
+                    <div id="labTrendsDisplay" class="text-sm text-slate-500">No trend data available</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="content-notes" class="chart-section hidden">
+              <div class="bg-white border rounded-lg p-4">
+                <h3 class="font-medium text-slate-800 mb-3">Notes</h3>
+                <textarea id="notesText" class="w-full rounded-lg p-3 border min-h-48" placeholder="Enter clinical notes..."></textarea>
+                <div class="mt-2 flex gap-2">
+                  <button id="saveNoteBtn" class="btn-primary px-3 py-2 rounded-lg">Save Note</button>
+                  <button id="templatesNoteBtn" class="btn-ghost px-3 py-2 rounded-lg">Templates</button>
+                </div>
+              </div>
+            </div>
+            <div id="content-orders" class="chart-section hidden">
+              <p class="text-gray-600">Orders content coming soon...</p>
+            </div>
+            <div id="content-imaging" class="chart-section hidden">
+              <p class="text-gray-600">Imaging content coming soon...</p>
+            </div>
+            <div id="content-history" class="chart-section hidden">
+              <p class="text-gray-600">History content coming soon...</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Modal for patient detail (kept from original) -->
+  <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center p-6">
+    <div id="modalBody" class="w-full max-w-3xl rounded-2xl glass soft-shadow p-4"></div>
+    <button type="button" class="absolute top-6 right-6 btn-ghost" onclick="closeModal()">✕</button>
+  </div>
+
+  <!-- Login modal -->
+  <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-60 hidden">
+    <div class="w-full max-w-md p-6 rounded-2xl glass soft-shadow text-slate-800">
+      <div class="flex items-center gap-4 mb-4">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-600 to-indigo-700 text-white flex items-center justify-center">🩺</div>
+        <div>
+          <div class="text-lg font-bold">ONE CARE <span class="text-amber-400">SYSTEM</span></div>
+          <div class="text-sm text-slate-500">Sign in to continue</div>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <form id="loginForm">
+          <label class="sr-only" for="loginEmail">Email</label>
+          <input id="loginEmail" name="email" type="email" placeholder="Email" class="w-full rounded-lg p-3 border" required />
+
+          <label class="sr-only" for="loginPass">Password</label>
+          <div class="relative mt-2">
+            <input id="loginPass" name="password" type="password" placeholder="Password" class="w-full rounded-lg p-3 border pr-20" required />
+            <button type="button" id="toggleLoginPass" class="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-slate-600 px-2">Show</button>
+          </div>
+
+          <div class="flex items-center justify-between mt-3">
+            <button type="submit" id="loginBtn" class="btn-primary flex items-center gap-2">
+              <span id="loginSpinner" class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              <span id="loginBtnText">Sign in</span>
+            </button>
+            <button type="button" id="loginCancel" class="btn-ghost">Cancel</button>
+          </div>
+          <div id="loginError" class="text-sm text-red-600 mt-2 hidden" role="alert"></div>
+        </form>
+        
+        <!-- Role Information -->
+        <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <h4 class="text-sm font-semibold text-blue-800 mb-2">Available User Roles:</h4>
+          <div class="text-xs text-blue-700 space-y-1">
+            <div><strong>👑 Administrator:</strong> Full system access</div>
+            <div><strong>👨‍⚕️ Doctor:</strong> Complete clinical access</div>
+            <div><strong>👩‍⚕️ Nurse:</strong> Clinical access (limited)</div>
+            <div><strong>🏥 Admission Staff:</strong> Patient registration & bed management</div>
+            <div><strong>🛏️ Bed Navigator:</strong> Patient info, departments & bed management</div>
+          </div>
+          <div class="text-xs text-blue-600 mt-2 italic">
+            Your role is automatically assigned based on your login credentials.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container (toasts are injected by JS) -->
+  <div id="toastContainer" aria-live="polite" class="fixed right-6 bottom-6 z-50"></div>
+
+  <!-- Help Modal -->
+  <div id="helpModal" class="fixed inset-0 z-60 hidden items-center justify-center bg-slate-900 bg-opacity-60">
+    <div class="w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl glass soft-shadow text-slate-800 mx-4">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center">❓</div>
+          <div>
+            <div class="text-xl font-bold">Help & Documentation</div>
+            <div class="text-sm text-slate-500">Quick guide to using the EHR system</div>
+          </div>
+        </div>
+        <button id="closeHelpModal" class="btn-ghost">✕</button>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-4">
+          <div class="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+            <h3 class="font-semibold text-emerald-800 mb-2">🏠 Dashboard</h3>
+            <ul class="text-sm text-emerald-700 space-y-1">
+              <li>• View patient census and statistics</li>
+              <li>• Monitor vitals and medications</li>
+              <li>• Access quick actions</li>
+              <li>• Filter patient timeline</li>
+            </ul>
+          </div>
+          
+          <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h3 class="font-semibold text-blue-800 mb-2">👤 Patient Information</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+              <li>• Complete demographics required</li>
+              <li>• Age auto-calculates from DOB</li>
+              <li>• Use "Demo Data" for testing</li>
+              <li>• Validate before saving</li>
+            </ul>
+          </div>
+          
+          <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+            <h3 class="font-semibold text-purple-800 mb-2">🔍 Physical Assessment</h3>
+            <ul class="text-sm text-purple-700 space-y-1">
+              <li>• BMI calculates automatically</li>
+              <li>• Initial diagnosis required</li>
+              <li>• Complete all system reviews</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="space-y-4">
+          <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+            <h3 class="font-semibold text-green-800 mb-2">💊 Medications & IV</h3>
+            <ul class="text-sm text-green-700 space-y-1">
+              <li>• Use CPOE for new orders</li>
+              <li>• Separate medication and IV tables</li>
+              <li>• Normalize IVs feature available</li>
+              <li>• MAR tracks administration</li>
+            </ul>
+          </div>
+          
+          <div class="bg-amber-50 p-4 rounded-lg border border-amber-200">
+            <h3 class="font-semibold text-amber-800 mb-2">📊 Vitals & Monitoring</h3>
+            <ul class="text-sm text-amber-700 space-y-1">
+              <li>• Record with date and time</li>
+              <li>• Include intake/output</li>
+              <li>• Automatic validation</li>
+            </ul>
+          </div>
+          
+          <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
+            <h3 class="font-semibold text-teal-800 mb-2">📝 Documentation</h3>
+            <ul class="text-sm text-teal-700 space-y-1">
+              <li>• Nurse Notes: Use FDAR format</li>
+              <li>• Doctor Notes: SOAP format</li>
+              <li>• Auto-save functionality</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-6 p-4 bg-slate-50 rounded-lg border">
+        <h3 class="font-semibold text-slate-800 mb-2">🔧 Tips & Shortcuts</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-700">
+          <ul class="space-y-1">
+            <li>• Press "/" to focus search</li>
+            <li>• Use Tab to navigate forms</li>
+            <li>• Required fields marked with *</li>
+          </ul>
+          <ul class="space-y-1">
+            <li>• Green borders = valid input</li>
+            <li>• Red borders = missing/invalid</li>
+            <li>• Auto-refresh every 30 seconds</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom horizontal tab bar (cloned from sidebar via JS) -->
+  <div id="bottomNavWrap" class="fixed left-0 right-0 bottom-0 z-40 p-2 flex justify-center hidden">
+    <nav id="bottomNav" class="bg-white/80 glass rounded-xl px-3 py-2 flex gap-2 items-center"></nav>
+  </div>
+
+  <!-- Firebase SDKs (v8) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+
+  <!-- Chart.js for enhanced data visualization (pinned versions to avoid 404 sourcemaps) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+
+  <!-- Core Application -->
+  <script src="./app.js" onerror="console.error('Failed to load app.js - critical error!')"></script>
+  
+  <!-- Deployment Status Check -->
+  <script>
+    // Production deployment status checker
+    window.deploymentStatus = {
+      environment: window.location.hostname.includes('vercel.app') ? 'production' : 'development',
+      timestamp: new Date().toISOString(),
+      modules: {
+        firebase: typeof firebase !== 'undefined',
+        chartjs: typeof Chart !== 'undefined',
+        tailwind: !!document.querySelector('script[src*="tailwindcss"]')
+      }
+    };
+    
+    console.log('🚀 EHR Deployment Status:', window.deploymentStatus);
+    
+    // Error logging for development (no user-facing messages)
+    window.addEventListener('error', function(e) {
+      console.error('JavaScript Error:', e.error);
+      // Only log errors, don't show disruptive messages since features are working
+    });
+  </script>
+
+  <!-- Enhanced functionality -->
+  <script>
+    // Enhanced Dashboard Functions
+    function navigateToTab(tabId) {
+      const button = document.querySelector(`[data-target="${tabId}"]`);
+      if (button) button.click();
+    }
+    
+    function showAllPatients() {
+      // Ensure we're on the Overview section where the Patients list lives
+      if (typeof window.switchEMRSection === 'function') {
+        window.switchEMRSection('overview');
+      } else {
+        // Fallback to nav button with data-target="overview"
+        const btn = document.querySelector('[data-target="overview"]');
+        if (btn) btn.click();
+        else navigateToTab('overview');
+      }
+      const anchor = document.getElementById('patientsAnchor');
+      if (anchor) {
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+    
+    function refreshDashboard() {
+      // Refresh dashboard data
+      const refreshBtn = document.getElementById('refreshDashboard');
+      if (refreshBtn) {
+        refreshBtn.innerHTML = '⟳';
+        refreshBtn.style.animation = 'spin 1s linear infinite';
+        
+        // Simulate refresh
+        setTimeout(() => {
+          refreshBtn.innerHTML = '🔄';
+          refreshBtn.style.animation = '';
+          updateLastUpdated();
+          if (window.showToast) {
+            showToast('Dashboard refreshed', 'success');
+          }
+        }, 1000);
+      }
+    }
+    
+    function updateLastUpdated() {
+      const elem = document.getElementById('lastUpdated');
+      if (elem) {
+        const now = new Date();
+        elem.textContent = `Updated ${now.toLocaleTimeString()}`;
+      }
+    }
+    
+    // Auto-calculate age from date of birth
+    function calculateAge() {
+      const dobInput = document.getElementById('info_dob');
+      const ageInput = document.getElementById('info_age');
+      
+      if (dobInput && ageInput) {
+        dobInput.addEventListener('change', function() {
+          const dob = new Date(this.value);
+          const today = new Date();
+          let age = today.getFullYear() - dob.getFullYear();
+          const monthDiff = today.getMonth() - dob.getMonth();
+          
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+            age--;
+          }
+          
+          ageInput.value = age >= 0 ? age : '';
+        });
+      }
+    }
+    
+    // Form validation
+    function setupFormValidation() {
+      const form = document.getElementById('form-info');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          validatePatientInfo();
+        });
+      }
+      
+      // Real-time validation
+      const requiredFields = form?.querySelectorAll('[required]');
+      requiredFields?.forEach(field => {
+        field.addEventListener('blur', function() {
+          validateField(this);
+        });
+      });
+    }
+    
+    function validateField(field) {
+      const isValid = field.checkValidity();
+      field.classList.toggle('border-red-500', !isValid);
+      field.classList.toggle('border-green-500', isValid && field.value);
+    }
+    
+    function validatePatientInfo() {
+      const form = document.getElementById('form-info');
+      const status = document.getElementById('infoStatus');
+      
+      if (form && status) {
+        const isValid = form.checkValidity();
+        
+        status.className = `p-3 rounded-lg ${isValid ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`;
+        status.textContent = isValid ? '✓ All required fields are completed' : '⚠ Please complete all required fields';
+        status.classList.remove('hidden');
+        
+        if (isValid && window.showToast) {
+          showToast('Patient information validated successfully', 'success');
+        }
+      }
+    }
+    
+    // Demo data function
+    function fillDemoData() {
+      const demoData = {
+        mrn: 'MRN' + Math.random().toString().substr(2, 6),
+        patientStatus: 'Inpatient',
+        roomNo: '201A',
+        bedNo: 'Bed 1',
+        admissionDate: new Date().toISOString().split('T')[0],
+        admissionTime: '14:30',
+        physician: 'Dr. Maria Santos',
+        referralSource: 'Emergency Department',
+        name: 'Dela Cruz, Juan Carlos',
+        civilStatus: 'Married',
+        dob: '1985-03-15',
+        gender: 'Male',
+        contact: '+63 917 123 4567',
+        email: 'juan.delacruz@email.com',
+        address: '123 Main Street, Quezon City, Metro Manila 1100',
+        language: 'Filipino',
+        ethnicity: 'Filipino',
+        occupation: 'Teacher',
+        employer: 'ABC Elementary School',
+        emg_name: 'Dela Cruz, Maria',
+        emg_relation: 'Spouse',
+        emg_phone: '+63 917 765 4321'
+      };
+      
+      Object.keys(demoData).forEach(key => {
+        const element = document.getElementById(`info_${key}`);
+        if (element) {
+          element.value = demoData[key];
+          if (element.type === 'date' && key === 'dob') {
+            // Trigger age calculation
+            element.dispatchEvent(new Event('change'));
+          }
+        }
+      });
+      
+      if (window.showToast) {
+        showToast('Demo data filled', 'info');
+      }
+    }
+    
+    // Enhanced search functionality
+    function setupSearchFilters() {
+      const searchInput = document.getElementById('patientSearch');
+      const statusFilter = document.getElementById('patientStatusFilter');
+      
+      if (searchInput) {
+        searchInput.addEventListener('input', debounce(filterPatients, 300));
+      }
+      
+      if (statusFilter) {
+        statusFilter.addEventListener('change', filterPatients);
+      }
+    }
+    
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+    
+    function filterPatients() {
+      // This would connect to the existing patient filtering logic
+      console.log('Filtering patients...');
+    }
+    
+    // Timeline filter functionality
+    function setupTimelineFilters() {
+      const filterButtons = document.querySelectorAll('.timeline-filter-btn');
+      filterButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+          filterButtons.forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          filterTimelineEvents(this.dataset.filter);
+        });
+      });
+    }
+    
+    function filterTimelineEvents(filter) {
+      console.log('Filtering timeline by:', filter);
+      // This would connect to timeline filtering logic
+    }
+    
+    // Initialize enhanced features when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      calculateAge();
+      setupFormValidation();
+      setupSearchFilters();
+      setupTimelineFilters();
+      updateLastUpdated();
+      
+      // Wire up demo data button
+      const demoBtn = document.getElementById('autoFillDemo');
+      if (demoBtn) {
+        demoBtn.addEventListener('click', fillDemoData);
+      }
+      
+      // Wire up validate button
+      const validateBtn = document.getElementById('validateInfo');
+      if (validateBtn) {
+        validateBtn.addEventListener('click', validatePatientInfo);
+      }
+      
+      // Wire up refresh button
+      const refreshBtn = document.getElementById('refreshDashboard');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', refreshDashboard);
+      }
+      
+      // Wire up help modal
+      const helpBtn = document.getElementById('helpBtn');
+      const helpModal = document.getElementById('helpModal');
+      const closeHelpBtn = document.getElementById('closeHelpModal');
+      
+      if (helpBtn && helpModal) {
+        helpBtn.addEventListener('click', () => {
+          helpModal.classList.remove('hidden');
+          helpModal.classList.add('flex');
+          document.body.classList.add('overflow-hidden');
+        });
+      }
+      
+      if (closeHelpBtn && helpModal) {
+        closeHelpBtn.addEventListener('click', () => {
+          helpModal.classList.add('hidden');
+          helpModal.classList.remove('flex');
+          document.body.classList.remove('overflow-hidden');
+        });
+      }
+      
+      // Close help modal on background click
+      if (helpModal) {
+        helpModal.addEventListener('click', (e) => {
+          if (e.target === helpModal) {
+            helpModal.classList.add('hidden');
+            helpModal.classList.remove('flex');
+            document.body.classList.remove('overflow-hidden');
+          }
+        });
+      }
+    });
+    
+    // CSS for spin animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
+</body>
+</html>
