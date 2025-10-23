@@ -171,6 +171,40 @@ body {
   border-color: var(--primary-200);
 }
 
+/* Size variants */
+.btn-sm {
+  padding: 0.4rem 0.7rem !important;
+  font-size: 0.8125rem !important;
+  border-radius: 8px !important;
+}
+
+/* Utility fallback if Tailwind is unavailable */
+.hidden { display: none !important; }
+
+/* Dropdown menu */
+.menu {
+  background: white;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(2,6,23,0.12);
+  padding: 0.25rem;
+  z-index: 1000; /* ensure overlay above other elements */
+}
+.menu .menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+.menu .menu-item:hover {
+  background: #f1f5f9;
+}
+
 .header-logo { 
   font-weight: 800; 
   letter-spacing: 0.4px; 
