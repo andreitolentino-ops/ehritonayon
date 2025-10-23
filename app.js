@@ -189,11 +189,14 @@ window.addEventListener('pagehide', signOutOnClose);
 // -------------------- App state --------------------
 let currentUser = null;
 let currentRole = 'guest';
+let currentUserProfile = null; // {displayName, department, role}
 let patients = [];
 let selectedPatientId = null;
 let vitalsRows = [];
 let uploadedLabs = [];
 let isSaving = false;
+// Realtime subscriptions
+let vitalsUnsub = null;
 
 // Demo toggle: when true, guests see sample patients locally (not saved to cloud)
 const ENABLE_DEMO_PATIENTS = true;
@@ -214,6 +217,11 @@ function esc(s){ if(s===null||s===undefined) return ''; return String(s).replace
 // Usage: showToast('message', 'info'|'success'|'error', timeoutMs)
 function showToast(message, type='info', timeout=3500){
   try{
+    // De-dupe very recent identical toasts (prevents double toasts from bubbling handlers)
+    if (showToast._last && showToast._last.msg === String(message) && (Date.now() - showToast._last.time) < 400) {
+      return;
+    }
+    showToast._last = { msg: String(message), time: Date.now() };
     const colors = { info: 'bg-sky-600', success: 'bg-emerald-600', error: 'bg-rose-600' };
     const container = document.getElementById('toastContainer') || document.body;
     const card = document.createElement('div');
@@ -2092,13 +2100,10 @@ auth.onAuthStateChanged(async user => {
   // expose to global inline snippets
   window.currentUser = currentUser;
   if(user){
-    // lookup role safely (client-side helper). NOTE: production should use custom claims and security rules.
-    try{
-      const uq = await db.collection('users').where('email','==', user.email).limit(1).get();
-      if(!uq.empty) currentRole = (uq.docs[0].data().role || 'guest').toLowerCase(); else currentRole = 'guest';
-    }catch(e){ console.warn('role lookup failed', e); currentRole = 'guest'; }
+    // Load profile (role, displayName, department)
+    await loadUserProfile(user);
     renderUserBadge();
-    applyRoleUI();
+    applyRolePermissions(currentRole);
     // hide login modal if present
     const loginModalEl = $('loginModal'); if(loginModalEl) loginModalEl.classList.add('hidden');
     // enable realtime updates for patients
@@ -2119,8 +2124,9 @@ auth.onAuthStateChanged(async user => {
     initializeSystemForUser();
   } else {
     currentRole = 'guest';
+    currentUserProfile = null;
     renderUserBadge();
-    applyRoleUI();
+    applyRolePermissions(currentRole);
     // show login modal
     const loginModalEl = $('loginModal'); if(loginModalEl) loginModalEl.classList.remove('hidden');
     patients = []; renderPatients([]);
@@ -2135,9 +2141,11 @@ auth.onAuthStateChanged(async user => {
   const userMenuEmailStrong = document.getElementById('userMenuEmailStrong');
   const userRoleEl = document.getElementById('userRole');
   if(user){
-    if(userMenuEmail) userMenuEmail.textContent = user.email;
-    if(userMenuEmailStrong) userMenuEmailStrong.textContent = user.email;
-    if(userRoleEl) userRoleEl.textContent = (currentRole||'guest').toUpperCase();
+    const display = (currentUserProfile && currentUserProfile.displayName) || user.email;
+    const dept = (currentUserProfile && currentUserProfile.department) || '';
+    if(userMenuEmail) userMenuEmail.textContent = display;
+    if(userMenuEmailStrong) userMenuEmailStrong.textContent = display;
+    if(userRoleEl) userRoleEl.textContent = `${(currentRole||'guest').toUpperCase()}${dept ? ' • ' + dept : ''}`;
   } else {
     if(userMenuEmail) userMenuEmail.textContent = 'Not signed in';
     if(userMenuEmailStrong) userMenuEmailStrong.textContent = 'Not signed in';
@@ -2153,8 +2161,10 @@ function renderUserBadge(){
   
   if(currentUserName && currentUserRole) {
     if(currentUser) {
-      currentUserName.textContent = currentUser.email;
-      currentUserRole.textContent = `(${(currentRole||'guest').toUpperCase()})`;
+      const display = (currentUserProfile && currentUserProfile.displayName) || currentUser.email;
+      const dept = (currentUserProfile && currentUserProfile.department) || '';
+      currentUserName.textContent = display;
+      currentUserRole.textContent = `(${(currentRole||'guest').toUpperCase()}${dept ? ' • ' + dept : ''})`;
     } else {
       currentUserName.textContent = 'Not signed in';
       currentUserRole.textContent = '(GUEST)';
@@ -2165,7 +2175,9 @@ function renderUserBadge(){
   ui.innerHTML = '';
   if(!currentUser) { ui.innerHTML = '<div class="text-sm text-white/80">Not signed in</div>'; return; }
   const b = document.createElement('div'); b.className='px-3 py-1 rounded-full bg-white/10 text-white font-semibold'; b.textContent = 'USER';
-  const t = document.createElement('div'); t.className='text-sm text-white/90'; t.innerHTML = `<div class="font-medium">${esc(currentUser.email)}</div><div class="text-xs opacity-60">${(currentRole||'guest').toUpperCase()}</div>`;
+  const display = (currentUserProfile && currentUserProfile.displayName) || currentUser.email;
+  const dept = (currentUserProfile && currentUserProfile.department) || '';
+  const t = document.createElement('div'); t.className='text-sm text-white/90'; t.innerHTML = `<div class="font-medium">${esc(display)}</div><div class="text-xs opacity-60">${(currentRole||'guest').toUpperCase()}${dept ? ' • ' + esc(dept) : ''}</div>`;
   ui.appendChild(b); ui.appendChild(t);
 }
 
@@ -2364,13 +2376,77 @@ function applyRoleUI(){
 function updateCurrentUserRole() {
   const currentUserRole = document.getElementById('currentUserRole');
   if (currentUserRole) {
-    currentUserRole.textContent = `(${(currentRole||'guest').toUpperCase()})`;
+    const dept = (currentUserProfile && currentUserProfile.department) || '';
+    currentUserRole.textContent = `(${(currentRole||'guest').toUpperCase()}${dept ? ' • ' + dept : ''})`;
   }
   
   const userRoleEl = document.getElementById('userRole');
   if (userRoleEl) {
-    userRoleEl.textContent = (currentRole||'guest').toUpperCase();
+    const dept = (currentUserProfile && currentUserProfile.department) || '';
+    userRoleEl.textContent = `${(currentRole||'guest').toUpperCase()}${dept ? ' • ' + dept : ''}`;
   }
+}
+
+// Apply role permissions wrapper (complements applyRoleUI)
+function applyRolePermissions(role){
+  // normalize
+  currentRole = (role || currentRole || 'guest').toLowerCase();
+  applyRoleUI();
+  updateCurrentUserRole();
+  // Additional gating for Patient Actions menu visibility
+  const actionsToggle = document.getElementById('btnPatientActions');
+  const canSeeActions = ['admin','doctor','nurse','admission','bednav'].includes(currentRole);
+  if(actionsToggle){ actionsToggle.style.display = canSeeActions ? '' : 'none'; }
+}
+
+// Load user profile (role, displayName, department) from Firestore
+async function loadUserProfile(user){
+  currentUserProfile = null;
+  let role = 'guest';
+  try{
+    // Prefer users/{uid}
+    const doc = await db.collection('users').doc(user.uid).get();
+    if(doc.exists){
+      const data = doc.data() || {};
+      role = (data.role || role).toLowerCase();
+      currentUserProfile = {
+        displayName: data.displayName || user.displayName || user.email,
+        department: data.department || '',
+        role
+      };
+    } else {
+      // Fallback: query by email
+      const uq = await db.collection('users').where('email','==', user.email).limit(1).get();
+      if(!uq.empty){
+        const data = uq.docs[0].data() || {};
+        role = (data.role || role).toLowerCase();
+        currentUserProfile = {
+          displayName: data.displayName || user.displayName || user.email,
+          department: data.department || '',
+          role
+        };
+      } else {
+        currentUserProfile = { displayName: user.displayName || user.email, department: '', role };
+      }
+    }
+  }catch(e){ console.warn('loadUserProfile failed', e); currentUserProfile = { displayName: user.displayName || user.email, department: '', role }; }
+  currentRole = currentUserProfile.role || role;
+  return currentUserProfile;
+}
+
+// Expose simple login/logout wrappers
+window.login = async function(email, password){
+  try{
+    await auth.signInWithEmailAndPassword(email, password);
+    showToast('✅ Login successful', 'success');
+  }catch(e){ showToast('Sign-in failed: ' + (e.message||e.code), 'error'); throw e; }
+}
+
+window.logout = async function(){
+  try{
+    await auth.signOut();
+    showToast('👋 Logged out', 'info');
+  }catch(e){ showToast('Logout failed: ' + (e.message||e.code), 'error'); throw e; }
 }
 
 // Function to create sample users with different roles (for testing)
@@ -2580,6 +2656,8 @@ function selectPatientById(id){
   try { if (typeof renderVitalsTable === 'function') renderVitalsTable(); } catch(_) {}
   try { if (typeof renderLabFiles === 'function') renderLabFiles(); } catch(_) {}
   try { if (typeof renderEnhancedVitalsChart === 'function') renderEnhancedVitalsChart(id); } catch(_) {}
+  // Subscribe to Firestore vitals for this patient
+  try { subscribeToVitals(id); } catch(e) { console.warn('subscribeToVitals failed', e); }
   // highlight selection in the grid
   const container = document.getElementById('patientsContainer');
   if(container){
@@ -2648,7 +2726,7 @@ function renderPatients(list){
     const view = document.createElement('button'); 
     view.className='flex-1 px-3 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors text-xs font-medium'; 
     view.textContent='👁️ View'; 
-  view.onclick = (ev)=> { ev.stopPropagation(); viewPatient(p.id); };
+  view.onclick = (ev)=> { ev.stopPropagation(); selectPatientById(p.id); viewPatient(p.id); };
     
     const edit = document.createElement('button'); 
     edit.className='flex-1 px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-xs font-medium'; 
@@ -2672,6 +2750,7 @@ function renderPatients(list){
     
     card.addEventListener('click', (e)=>{
       if(e.target && (e.target.tagName === 'BUTTON' || e.target.closest('button'))) return;
+      e.stopPropagation();
       selectPatientById(p.id);
     });
     card.addEventListener('keydown', (e)=>{
@@ -2687,15 +2766,19 @@ function renderPatients(list){
       const btn = e.target.closest('button'); if(btn) return;
       const card = e.target.closest('.patient-card');
       if(!card) return;
-      const id = card.getAttribute('data-pid');
+      const alreadySelected = selectedPatientId === id;
+      selectedPatientId = id;
       if(id) selectPatientById(id);
     });
     container.dataset.delegated = '1';
   }
+      try { window.selectedPatientId = id; window.dispatchEvent(new CustomEvent('patient:changed', { detail: { id, patient: p } })); } catch(_) {}
 
   // Update global count
   if($('count')) $('count').textContent = (list||[]).length;
-  
+      if (!alreadySelected) {
+        showToast(`Selected: ${p?.name || 'Patient'}`, 'info', 2000);
+      }
   // Auto-select first patient if none selected and patients exist
   if(list && list.length > 0 && !selectedPatientId) {
     selectedPatientId = list[0].id;
@@ -3842,7 +3925,9 @@ function initializeEMRNavigation() {
   }
 
   // Initialize with overview section by default
-  switchEMRSection('overview');
+  // Respect hash route if present
+  const initial = (location.hash || '#overview').replace('#','');
+  switchEMRSection(initial);
   setActiveNav('overview');
 }
 
@@ -3870,6 +3955,8 @@ function switchEMRSection(sectionId) {
 
   // Update section header
   updateEMRSectionHeader(sectionId);
+  // Update URL hash for shareable deep-link
+  try { if(location.hash !== '#' + sectionId) location.hash = sectionId; } catch(_) {}
 }
 
 function updateEMRSectionHeader(sectionId) {
@@ -4038,6 +4125,89 @@ function wireEMRButtons() {
   if (addPatientBtn) {
     addPatientBtn.addEventListener('click', () => {
       try { showAddPatientModal(); } catch(e) { console.warn('showAddPatientModal failed:', e); }
+    });
+  }
+
+  // Patient Actions dropdown toggle
+  const actionsToggle = document.getElementById('btnPatientActions');
+  const actionsMenu = document.getElementById('patientActionsMenu');
+  if (actionsToggle && actionsMenu) {
+    actionsToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const willShow = actionsMenu.classList.toggle('hidden');
+      // update aria for a11y (true means expanded/open)
+      actionsToggle.setAttribute('aria-expanded', (!willShow).toString());
+    });
+    // Keyboard support for accessibility
+    actionsToggle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        actionsToggle.click();
+      } else if (e.key === 'Escape') {
+        if (!actionsMenu.classList.contains('hidden')) {
+          actionsMenu.classList.add('hidden');
+          actionsToggle.setAttribute('aria-expanded', 'false');
+        }
+      }
+    });
+    const actionsWrapper = actionsToggle.closest('.inline-block') || actionsToggle.parentElement || document.body;
+    // Close when clicking outside the wrapper (not on button or menu)
+    const maybeClose = (evt) => {
+      const target = evt.target;
+      if (!actionsWrapper.contains(target)) {
+        if (!actionsMenu.classList.contains('hidden')) actionsMenu.classList.add('hidden');
+        actionsToggle.setAttribute('aria-expanded', 'false');
+      }
+    };
+    document.addEventListener('pointerdown', maybeClose);
+    document.addEventListener('click', maybeClose);
+
+    // Delegation fallback: ensure actions work even if individual listeners didn't bind
+    actionsMenu.addEventListener('click', (ev) => {
+      const btn = ev.target && ev.target.closest('button');
+      const id = btn && btn.id;
+      if (!id) return;
+      // close the menu after any action
+      if (!actionsMenu.classList.contains('hidden')) actionsMenu.classList.add('hidden');
+      if (id === 'btnAssignBed') {
+        ensurePatientSelected(()=> showBedAssignmentModal());
+      } else if (id === 'btnTransfer') {
+        ensurePatientSelected(()=> showPatientTransferModal());
+      } else if (id === 'btnDischarge') {
+        ensurePatientSelected(async ()=>{
+          if(!confirm('Discharge this patient and free the bed?')) return;
+          try{ await dischargePatientFromBed(selectedPatientId); showToast('Patient discharged','success'); }catch(e){ showToast('Discharge failed','error'); }
+        });
+      } else if (id === 'btnPrintSummary') {
+        ensurePatientSelected(()=>{ try{ printPatientSummary(); }catch(e){ window.print(); } });
+      } else if (id === 'btnWristband') {
+        ensurePatientSelected(()=>{ try{ printWristband(); }catch(e){ window.print(); } });
+      }
+    });
+
+    // Global safety net: handle actions even if early wiring failed
+    document.addEventListener('click', (ev) => {
+      const mi = ev.target && ev.target.closest('#patientActionsMenu .menu-item');
+      if (!mi) return;
+      const id = mi.id;
+      if (!id) return;
+      // mimic the same behavior as above
+      if (!actionsMenu.classList.contains('hidden')) actionsMenu.classList.add('hidden');
+      if (id === 'btnAssignBed') {
+        ensurePatientSelected(()=> showBedAssignmentModal());
+      } else if (id === 'btnTransfer') {
+        ensurePatientSelected(()=> showPatientTransferModal());
+      } else if (id === 'btnDischarge') {
+        ensurePatientSelected(async ()=>{
+          if(!confirm('Discharge this patient and free the bed?')) return;
+          try{ await dischargePatientFromBed(selectedPatientId); showToast('Patient discharged','success'); }catch(e){ showToast('Discharge failed','error'); }
+        });
+      } else if (id === 'btnPrintSummary') {
+        ensurePatientSelected(()=>{ try{ printPatientSummary(); }catch(e){ window.print(); } });
+      } else if (id === 'btnWristband') {
+        ensurePatientSelected(()=>{ try{ printWristband(); }catch(e){ window.print(); } });
+      }
     });
   }
 
@@ -4287,6 +4457,8 @@ function updatePatientBanner(p){
     setText('attendingPhysician','Dr. --');
     setText('admitDate','--/--/----');
     setText('patientStatus','Active');
+    setText('patientAllergies','None');
+    setText('patientCodeStatus','Full Code');
     return;
   }
   setText('patientName', p.name || p.fullname || 'Unnamed Patient');
@@ -4314,7 +4486,29 @@ function updatePatientBanner(p){
   setText('attendingPhysician', p.physician ? ('Dr. ' + p.physician) : 'Dr. --');
   setText('admitDate', p.admissionDate || p.admitDate || '--/--/----');
   setText('patientStatus', p.patientStatus || 'Active');
+  // Also reflect allergy and code chips if present
+  setText('patientAllergies', p.allergies || 'None');
+  setText('patientCodeStatus', p.codeStatus || 'Full Code');
+  // Dev aid: log update target
+  try { console.debug('[banner] updated for', p.id || p.mrn || p.name); } catch(_) {}
 }
+
+// Keep banner in sync if other modules alter DOM after selection
+function ensureBannerSync(idOrPatient){
+  try {
+    const p = typeof idOrPatient === 'object' ? idOrPatient : (patients && patients.find(x=>x.id===idOrPatient));
+    if (!p) return;
+    updatePatientBanner(p);
+    // Re-apply shortly after in case another render overwrote it
+    setTimeout(()=>{ try{ updatePatientBanner(p); }catch(_){} }, 50);
+    setTimeout(()=>{ try{ updatePatientBanner(p); }catch(_){} }, 300);
+  } catch(_) {}
+}
+
+window.addEventListener('patient:changed', (e)=>{
+  const { id, patient } = e.detail || {};
+  ensureBannerSync(patient || id);
+});
 
 // Simple Add Patient modal
 function showAddPatientModal(){
@@ -5030,7 +5224,7 @@ document.addEventListener('click', e => {
 });
 
 // -------------------- Vitals table utilities --------------------
-if($('btnAddVitals')) $('btnAddVitals').addEventListener('click', ()=>{
+if($('btnAddVitals')) $('btnAddVitals').addEventListener('click', async ()=>{
   const f = $('form-vitals');
   const row = {
     date: f && f.v_date ? f.v_date.value : '',
@@ -5044,7 +5238,16 @@ if($('btnAddVitals')) $('btnAddVitals').addEventListener('click', ()=>{
     io_in: f && f.v_io_in ? f.v_io_in.value : '',
     io_out: f && f.v_io_out ? f.v_io_out.value : ''
   };
-  vitalsRows.push(row); renderVitalsTable();
+  try{
+    if(!selectedPatientId){
+      // Fallback to local if no saved patient yet
+      vitalsRows.push(row); renderVitalsTable();
+      showToast('Select or save a patient to persist vitals','info');
+    } else {
+      await saveVitalsToFirestore(selectedPatientId, row);
+      showToast('Vitals added successfully','success');
+    }
+  }catch(e){ console.warn('saveVitals failed', e); showToast('Failed to save vitals','error'); }
   if(f && f.v_date) f.v_date.value=''; if(f && f.v_time) f.v_time.value='';
   if(f && f.v_temp) f.v_temp.value=''; if(f && f.v_pulse) f.v_pulse.value='';
   if(f && f.v_rr) f.v_rr.value=''; if(f && f.v_bp) f.v_bp.value='';
@@ -5377,6 +5580,19 @@ function initializeEHRApplication() {
     
     // Setup additional missing button handlers
     setupAdditionalButtonHandlers();
+
+    // Register Service Worker (PWA offline caching)
+    if ('serviceWorker' in navigator) {
+      try {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(reg => {
+            console.log('✅ Service Worker registered', reg.scope);
+          })
+          .catch(err => console.warn('⚠️ Service Worker registration failed', err));
+      } catch (e) {
+        console.warn('⚠️ Service Worker not available in this environment');
+      }
+    }
     
     console.log('🎉 EHR Application initialization complete!');
     
@@ -8487,6 +8703,12 @@ function setupEnhancedPatientSelection() {
     try {
       // Store selected patient ID
       window.selectedPatientId = patientId;
+      // Update banner and core dashboard for consistency
+      try {
+        const p = patients && patients.find(x=>x.id===patientId);
+        if (p && typeof updatePatientBanner === 'function') updatePatientBanner(p);
+        if (typeof renderDashboardForPatient === 'function') renderDashboardForPatient(patientId);
+      } catch (e) { /* no-op */ }
       
       // Render enhanced vitals chart
       if (window.enhancedVitalsChart && patientId) {
